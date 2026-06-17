@@ -1,0 +1,45 @@
+version: '3.8' 
+services: 
+  db: 
+    image: postgres:16-alpine 
+    container_name: zigma_postgres 
+    volumes: 
+      - postgres_data:/var/lib/postgresql/data/ 
+    environment: 
+      - POSTGRES_DB=zigma_db 
+      - POSTGRES_USER=zigma_user 
+      - POSTGRES_PASSWORD=zigma_secure_password 
+    ports: 
+      - "5432:5432" 
+  redis: 
+    image: redis:7-alpine 
+    container_name: zigma_redis 
+    ports: 
+      - "6379:6379" 
+  web: 
+    build: . 
+    container_name: zigma_api 
+    command: python manage.py runserver 0.0.0.0:8000 
+    volumes: 
+      - .:/app 
+    ports: 
+      - "8000:8000" 
+    environment: 
+      - DATABASE_URL=postgres://zigma_user:zigma_secure_password@db:5432/zigma_db 
+      - CELERY_BROKER_URL=redis://redis:6379/0 
+    depends_on: 
+      - db 
+      - redis 
+  celery: 
+    build: . 
+    container_name: zigma_celery 
+    command: celery -A zigma_backend worker --loglevel=info 
+    volumes: 
+      - .:/app 
+    environment: 
+      - DATABASE_URL=postgres://zigma_user:zigma_secure_password@db:5432/zigma_db 
+      - CELERY_BROKER_URL=redis://redis:6379/0 
+    depends_on: 
+      - redis 
+volumes: 
+  postgres_data:
