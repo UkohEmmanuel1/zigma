@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'ai_engine',
     'notifications',
     'shared',
+    'portfolio',
 ]
 
 MIDDLEWARE = [
@@ -133,3 +134,28 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+
+CELERY_BEAT_SCHEDULE = {
+    'fetch-market-data-every-30-seconds': {
+        'task': 'market_data.tasks.fetch_market_data',
+        'schedule': 30.0,
+    },
+    'fetch-price-history-every-5-minutes': {
+        'task': 'market_data.tasks.fetch_price_history',
+        'schedule': 300.0,
+    },
+    'take-portfolio-snapshots-daily': {
+        'task': 'portfolio.tasks.take_portfolio_snapshots',
+        'schedule': 86400.0,
+    },
+    'match-limit-orders-every-10-seconds': {
+        'task': 'trading.tasks.match_limit_orders',
+        'schedule': 10.0,
+    },
+}
+
+APCA_API_KEY_ID = config('APCA_API_KEY_ID', default='')
+APCA_API_SECRET_KEY = config('APCA_API_SECRET_KEY', default='')
+APCA_BASE_URL = config('APCA_BASE_URL', default='https://paper-api.alpaca.markets')
+
+GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
