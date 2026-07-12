@@ -181,6 +181,42 @@ Starts PostgreSQL, Redis, Django API (port 8000), and Celery worker.
 | `AIChatSession` | `id`, `user`, `title`, `created_at`, `updated_at` | Chat sessions. Table: `ai_chat_sessions`, unmanaged |
 | `AIMessage` | `id`, `session`, `role`, `content`, `metadata`, `created_at` | Chat messages. Table: `ai_messages`, unmanaged |
 
+#### Wallet (`apps/wallet/models.py`)
+
+| Model | Fields | Notes |
+|---|---|---|
+| `Wallet` | `id`, `user`, `balance_cents`, `currency`, `created_at`, `updated_at` | One-to-one with User. Table: `wallets` |
+| `Transaction` | `id`, `wallet`, `type`, `amount_cents`, `balance_after_cents`, `status`, `reference`, `description`, `metadata`, `created_at` | Immutable transaction log. Table: `transactions` |
+| `P2PTransfer` | `id`, `sender`, `recipient`, `amount_cents`, `note`, `status`, `created_at` | P2P between Zigma users. Table: `p2p_transfers` |
+
+#### Crypto (`apps/crypto/models.py`)
+
+| Model | Fields | Notes |
+|---|---|---|
+| `CryptoWallet` | `id`, `user`, `currency`, `balance` (NUMERIC 38,18), `address`, `created_at`, `updated_at` | Per-currency balances. Unique: `(user, currency)`. Table: `crypto_wallets` |
+| `CryptoOrder` | `id`, `user`, `symbol`, `side`, `order_type`, `quantity`, `price`, `filled_quantity`, `status`, `is_paper`, `created_at` | Crypto-specific orders. Table: `crypto_orders` |
+| `CryptoHolding` | `id`, `user`, `symbol`, `quantity`, `avg_entry_price`, `created_at`, `updated_at` | Crypto positions. Unique: `(user, symbol)`. Table: `crypto_holdings` |
+| `CryptoSwa` | `id`, `user`, `from_currency`, `to_currency`, `from_amount`, `to_amount`, `rate`, `status`, `is_paper`, `created_at` | Crypto-to-crypto swaps. Table: `crypto_swaps` |
+
+#### Banking (`apps/banking/models.py`)
+
+| Model | Fields | Notes |
+|---|---|---|
+| `BankAccount` | `id`, `user`, `account_number`, `routing_number`, `provider`, `provider_account_id`, `balance_cents`, `status`, `created_at` | Virtual bank accounts. Table: `bank_accounts` |
+| `BankTransaction` | `id`, `account`, `type`, `amount_cents`, `balance_after_cents`, `description`, `reference`, `status`, `created_at` | Banking activity log. Table: `bank_transactions` |
+
+#### Cards (`apps/cards/models.py`)
+
+| Model | Fields | Notes |
+|---|---|---|
+| `BankCard` | `id`, `user`, `provider`, `provider_card_id`, `last4`, `expiry_month`, `expiry_year`, `brand`, `status`, `daily_limit_cents`, `monthly_limit_cents`, `online_enabled`, `atm_enabled`, `metadata`, `created_at` | Virtual debit cards. Table: `bank_cards` |
+
+#### KYC (`apps/kyc/models.py`)
+
+| Model | Fields | Notes |
+|---|---|---|
+| `KYCVerification` | `id`, `user`, `status`, `document_type`, `document_front_url`, `document_back_url`, `selfie_url`, `verification_provider`, `provider_reference`, `created_at`, `updated_at` | One-to-one with User. Table: `kyc_verifications` |
+
 ### Unmanaged Tables
 
 Models with `managed = False` are managed by Supabase migrations rather than Django migrations. The SQL migrations are located in `supabase/migrations/`:
@@ -189,6 +225,11 @@ Models with `managed = False` are managed by Supabase migrations rather than Dja
 - `0002_trading.sql` — `trading_orders`, `trading_holdings` tables
 - `0003_notifications.sql` — `notifications` table
 - `0004_ai_chat.sql` — `ai_chat_sessions`, `ai_messages` tables
+- `0005_wallet.sql` — `wallets`, `transactions`, `p2p_transfers` tables
+- `0006_crypto.sql` — `crypto_wallets`, `crypto_orders`, `crypto_holdings`, `crypto_swaps` tables
+- `0007_banking.sql` — `bank_accounts`, `bank_transactions` tables
+- `0008_cards.sql` — `bank_cards` table
+- `0009_kyc.sql` — `kyc_verifications` table
 
 All Supabase tables have Row Level Security (RLS) enabled with appropriate policies.
 
@@ -196,100 +237,153 @@ All Supabase tables have Row Level Security (RLS) enabled with appropriate polic
 
 ## API Reference
 
-All endpoints are prefixed with `/api/v1/`. Authentication uses JWT Bearer tokens unless marked as `AllowAny`.
+All endpoints are prefixed with `/api/v1/`.  
+Authentication uses JWT Bearer tokens (`Authorization: Bearer <token>`) unless marked as public.
 
-### Authentication (`/api/v1/auth/`)
+---
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `POST` | `/api/v1/auth/register/` | No | Create account, returns JWT |
-| `POST` | `/api/v1/auth/login/` | No | Login, returns JWT |
-| `POST` | `/api/v1/auth/token/refresh/` | No | Refresh access token |
-| `GET` | `/api/v1/auth/me/` | Yes | Return current user `{ id, email }` |
-| `POST` | `/api/v1/auth/change-password/` | Yes | Change current password |
-| `POST` | `/api/v1/auth/forgot-password/` | No | Generate password reset token |
-| `POST` | `/api/v1/auth/reset-password/` | No | Reset password with token |
-
-#### Register
-
-```
-POST /api/v1/auth/register/
-Body: { "email": "user@example.com", "password": "...", "password2": "..." }
-Response 201: { "user": { "id", "email" }, "access": "<jwt>", "refresh": "<jwt>" }
-```
-
-#### Login
-
-```
-POST /api/v1/auth/login/
-Body: { "email": "user@example.com", "password": "..." }
-Response 200: { "access": "<jwt>", "refresh": "<jwt>", "user": { "id", "email" } }
-```
-
-### Market Data (`/api/v1/market/`)
+### 1. Authentication (`/api/v1/auth/`)
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/v1/market/quote/<symbol>/` | No | Latest quote for a symbol |
-| `GET` | `/api/v1/market/candles/<symbol>/` | No | Price history (supports `?interval=`, `?start=`, `?end=`, `?limit=`) |
-| `GET` | `/api/v1/market/search/` | No | Search symbols via Alpaca (`?q=`) |
+| `POST` | `/auth/register/` | No | Create account. Body: `{email, password, password2}` → `{user, access, refresh}` |
+| `POST` | `/auth/login/` | No | Login. Body: `{email, password}` → `{access, refresh, user}` |
+| `POST` | `/auth/token/refresh/` | No | Refresh access token. Body: `{refresh}` → `{access}` |
+| `GET` | `/auth/me/` | Yes | Current user `{id, email}` |
+| `POST` | `/auth/change-password/` | Yes | Change password. Body: `{old_password, new_password}` |
+| `POST` | `/auth/forgot-password/` | No | Request reset token. Body: `{email}` |
+| `POST` | `/auth/reset-password/` | No | Reset password. Body: `{token, new_password}` |
 
-### Portfolio (`/api/v1/portfolio/`)
+---
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `GET` | `/api/v1/portfolio/` | Yes | Portfolio overview with holdings, current prices, P&L |
-| `GET` | `/api/v1/portfolio/performance/` | Yes | Portfolio snapshot history (`?start_date=`, `?end_date=`) |
-
-### Trading (`/api/v1/trading/`)
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `POST` | `/api/v1/trading/orders/` | Yes | Create an order |
-| `GET` | `/api/v1/trading/orders/list/` | Yes | List user orders (`?symbol=`, `?status=`) |
-| `POST` | `/api/v1/trading/orders/<uuid:pk>/cancel/` | Yes | Cancel a pending order |
-| `GET` | `/api/v1/trading/holdings/` | Yes | List user holdings |
-
-#### Create Order
-
-```
-POST /api/v1/trading/orders/
-Body: {
-  "symbol": "AAPL",
-  "side": "buy",           // "buy" or "sell"
-  "order_type": "market",  // "market", "limit", or "stop"
-  "quantity": 10,
-  "price": 150.00,         // required for limit orders
-  "stop_price": 145.00     // required for stop orders
-}
-```
-
-Market orders are executed immediately if a price is available. Limit and stop orders are matched periodically by the `match_limit_orders` Celery task.
-
-### Notifications (`/api/v1/notifications/`)
+### 2. Wallet & Fiat (`/api/v1/wallet/`)
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/v1/notifications/` | Yes | List notifications (`?unread_only=true`) |
-| `POST` | `/api/v1/notifications/mark-read/` | Yes | Mark notifications as read |
+| `GET` | `/wallet/` | Yes | Fiat wallet balance & currency |
+| `POST` | `/wallet/deposit/` | Yes | Simulated deposit. Body: `{amount_cents}` |
+| `GET` | `/wallet/transactions/` | Yes | Paginated transaction history |
 
-#### Mark Read
+---
 
-```
-POST /api/v1/notifications/mark-read/
-Body: { "ids": ["<uuid>", ...] }  // or { "all": true }
-Response: { "marked_read": <count> }
-```
-
-### AI Engine (`/api/v1/ai/`)
+### 3. Trading — Stocks (`/api/v1/trading/`)
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `POST` | `/api/v1/ai/chat/sessions/` | Yes | Create a chat session |
-| `GET` | `/api/v1/ai/chat/sessions/list/` | Yes | List user's chat sessions |
-| `POST` | `/api/v1/ai/chat/sessions/<uuid:pk>/messages/` | Yes | Send a message and get AI reply |
-| `GET` | `/api/v1/ai/chat/sessions/<uuid:pk>/messages/list/` | Yes | List messages in a session |
-| `POST` | `/api/v1/ai/portfolio/analyze/` | Yes | Generate AI portfolio analysis |
+| `GET` | `/trading/orders/` | Yes | List orders (`?symbol=`, `?status=`) |
+| `POST` | `/trading/orders/create/` | Yes | Place order. Body: `{symbol, side, order_type, quantity, price?, stop_price?}` |
+| `GET` | `/trading/orders/{id}/` | Yes | Get single order details |
+| `POST` | `/trading/orders/{id}/cancel/` | Yes | Cancel a pending order |
+| `GET` | `/trading/holdings/` | Yes | Current stock positions |
+
+**Order types:** `market`, `limit`, `stop`  
+**Side:** `buy`, `sell`
+
+---
+
+### 4. Crypto (`/api/v1/crypto/`)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/crypto/wallets/` | Yes | List crypto wallet balances |
+| `GET` | `/crypto/orders/` | Yes | List crypto orders (`?status=`) |
+| `POST` | `/crypto/orders/create/` | Yes | Place crypto order. Body: `{symbol, side, order_type, quantity, price?, is_paper}` |
+| `GET` | `/crypto/orders/{id}/` | Yes | Get order details |
+| `POST` | `/crypto/orders/{id}/cancel/` | Yes | Cancel a pending order |
+| `GET` | `/crypto/holdings/` | Yes | Current crypto positions |
+| `GET` | `/crypto/swaps/` | Yes | List swap orders |
+| `POST` | `/crypto/swaps/create/` | Yes | Swap crypto. Body: `{from_currency, to_currency, from_amount, is_paper}` |
+| `GET` | `/crypto/swaps/{id}/` | Yes | Get swap details |
+| `POST` | `/crypto/swaps/{id}/cancel/` | Yes | Cancel a pending swap |
+
+**Order types:** `MARKET`, `LIMIT`  
+**Side:** `BUY`, `SELL`
+
+---
+
+### 5. Market Data (`/api/v1/market/`)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/market/quote/{symbol}/` | Public | Latest price quote |
+| `GET` | `/market/quote/{market_type}/{symbol}/` | Public | Latest price by market type (STOCK/CRYPTO) |
+| `GET` | `/market/candles/{symbol}/` | Public | OHLCV history (`?interval=`, `?start=`, `?end=`, `?limit=`) |
+| `GET` | `/market/candles/{market_type}/{symbol}/` | Public | OHLCV history by market type |
+| `GET` | `/market/search/` | Public | Search symbols (`?q=`) |
+
+---
+
+### 6. Banking (`/api/v1/banking/`)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/banking/account/` | Yes | Open virtual bank account |
+| `GET` | `/banking/account/detail/` | Yes | Account details (masked number, balance) |
+| `GET` | `/banking/transactions/` | Yes | Bank transaction history |
+| `POST` | `/banking/transfer/` | Yes | External bank transfer. Body: `{amount_cents, recipient_account_number, recipient_routing, note?}` |
+| `POST` | `/banking/p2p/` | Yes | P2P to another user. Body: `{recipient_email, amount_cents, note?}` |
+| `POST` | `/banking/billpay/` | Yes | Pay a bill (stub — returns 501) |
+
+---
+
+### 7. Virtual Debit Cards (`/api/v1/banking/cards/`)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/banking/cards/` | Yes | List all cards (last4, expiry, brand, status, limits) |
+| `POST` | `/banking/cards/create/` | Yes | Issue new virtual card. Body: `{brand?}` (VISA/MASTERCARD) |
+| `GET` | `/banking/cards/{id}/` | Yes | Get single card details |
+| `POST` | `/banking/cards/{id}/freeze/` | Yes | Freeze card |
+| `POST` | `/banking/cards/{id}/unfreeze/` | Yes | Unfreeze card |
+| `POST` | `/banking/cards/{id}/limits/` | Yes | Update limits. Body: `{daily_limit_cents?, monthly_limit_cents?}` |
+| `POST` | `/banking/cards/{id}/toggle/online/` | Yes | Enable/disable online. Body: `{enabled}` |
+| `POST` | `/banking/cards/{id}/toggle/atm/` | Yes | Enable/disable ATM. Body: `{enabled}` |
+| `POST` | `/banking/cards/{id}/cancel/` | Yes | Permanently cancel card |
+
+---
+
+### 8. Portfolio (`/api/v1/portfolio/`)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/portfolio/` | Yes | Portfolio overview with holdings, current prices, P&L |
+| `GET` | `/portfolio/performance/` | Yes | Snapshot history (`?start_date=`, `?end_date=`) |
+
+---
+
+### 9. AI Assistant (`/api/v1/ai/`)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/ai/chat/sessions/` | Yes | List chat sessions |
+| `POST` | `/ai/chat/sessions/create/` | Yes | Create new session |
+| `GET` | `/ai/chat/sessions/{id}/` | Yes | Get session details |
+| `GET` | `/ai/chat/sessions/{id}/messages/` | Yes | Get message history |
+| `POST` | `/ai/chat/sessions/{id}/messages/create/` | Yes | Send message. Body: `{content}` → AI reply |
+| `POST` | `/ai/portfolio/analyze/` | Yes | Trigger AI portfolio analysis |
+| `GET` | `/ai/stock/insight/{market_type}/{symbol}/` | Public | AI-generated stock/crypto insight |
+
+---
+
+### 10. Notifications (`/api/v1/notifications/`)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/notifications/` | Yes | List notifications (`?unread_only=true`) |
+| `POST` | `/notifications/mark-read/` | Yes | Mark as read. Body: `{ids: [...]}` or `{all: true}` → `{marked_read: count}` |
+
+---
+
+### 11. KYC (`/api/v1/kyc/`)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/kyc/upload/` | Yes | Upload KYC documents. Body: `{document_type, document_front_url, document_back_url?, selfie_url?}` |
+| `GET` | `/kyc/status/` | Yes | Get verification status |
+
+---
+
+**Real-time events** (prices, order status, AI streaming) are delivered via WebSocket through the Real-time Gateway at `wss://rt.zigma.io` (separate service, not part of this Django API).
 
 ---
 

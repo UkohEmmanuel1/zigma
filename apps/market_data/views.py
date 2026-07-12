@@ -17,6 +17,14 @@ class QuoteView(RetrieveAPIView):
     lookup_url_kwarg = "symbol"
 
 
+class MarketQuoteByTypeView(RetrieveAPIView):
+    queryset = MarketQuote.objects.all()
+    serializer_class = MarketQuoteSerializer
+    permission_classes = [AllowAny]
+    lookup_field = "symbol"
+    lookup_url_kwarg = "symbol"
+
+
 class CandlesView(ListAPIView):
     serializer_class = PriceHistorySerializer
     permission_classes = [AllowAny]

@@ -1,5 +1,6 @@
 from rest_framework import status
-from rest_framework.generics import CreateAPIView, ListAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -13,6 +14,7 @@ from ai_engine.services import (
     build_portfolio_context,
     call_gemini,
     generate_portfolio_analysis,
+    get_stock_insight,
 )
 
 SYSTEM_PROMPT = """You are Zigma, an AI trading assistant for a paper trading platform.
@@ -26,6 +28,13 @@ class SessionCreateView(CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+
+class SessionDetailView(RetrieveAPIView):
+    serializer_class = AIChatSessionSerializer
+
+    def get_queryset(self):
+        return AIChatSession.objects.filter(user=self.request.user)
 
 
 class SessionListView(ListAPIView):
@@ -90,3 +99,21 @@ class PortfolioAnalyzeView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         return Response({"analysis": analysis})
+
+
+class StockInsightView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, market_type, symbol):
+        try:
+            insight = get_stock_insight(market_type, symbol)
+        except Exception as e:
+            return Response(
+                {"error": f"Insight generation failed: {e}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        return Response({
+            "market_type": market_type,
+            "symbol": symbol,
+            "insight": insight,
+        })

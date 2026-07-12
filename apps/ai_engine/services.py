@@ -81,3 +81,21 @@ def generate_portfolio_analysis(user):
     model = get_gemini_client()
     response = model.generate_content(f"{ANALYSIS_PROMPT}\n{context}")
     return response.text
+
+
+def get_stock_insight(market_type, symbol):
+    try:
+        quote = MarketQuote.objects.get(symbol=symbol)
+        price = float(quote.last) if quote.last else 0
+    except MarketQuote.DoesNotExist:
+        price = 0
+
+    context = f"Market Type: {market_type}\nSymbol: {symbol}\nCurrent Price: ${price:.2f}"
+    prompt = (
+        "You are Zigma, an AI stock analyst. "
+        "Provide a concise insight (bull/bear outlook, key levels, and a summary) "
+        f"for {symbol} in 3-4 sentences.\n\nData:\n{context}"
+    )
+    model = get_gemini_client()
+    response = model.generate_content(prompt)
+    return response.text

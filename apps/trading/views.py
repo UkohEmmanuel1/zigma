@@ -1,5 +1,5 @@
 from rest_framework import status
-from rest_framework.generics import CreateAPIView, ListAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -41,6 +41,13 @@ class OrderListView(ListAPIView):
         if status_param:
             qs = qs.filter(status=status_param)
         return qs.order_by("-created_at")
+
+
+class OrderDetailView(RetrieveAPIView):
+    serializer_class = OrderSerializer
+
+    def get_queryset(self):
+        return Order.objects.filter(user=self.request.user)
 
 
 class OrderCancelView(APIView):

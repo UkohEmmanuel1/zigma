@@ -29,6 +29,16 @@ REST_FRAMEWORK = {
     ),
     'UNAUTHENTICATED_USER': None,
     'UNAUTHENTICATED_TOKEN': None,
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '1000/hour',
+        'user': '10000/hour',
+    },
 }
 
 SIMPLE_JWT = {
@@ -54,6 +64,11 @@ INSTALLED_APPS = [
     'django_extensions',
     'users',
     'wallet',
+    'crypto',
+    'banking',
+    'cards',
+    'kyc',
+    'health',
     'trading',
     'market_data',
     'ai_engine',
@@ -115,6 +130,12 @@ else:
             },
         }
     }
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    },
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},

@@ -19,7 +19,13 @@ from django.urls import include, path
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/v1/health/', include('health.urls')),
     path('api/v1/auth/', include('users.urls')),
+    path('api/v1/wallet/', include('wallet.urls')),
+    path('api/v1/crypto/', include('crypto.urls')),
+    path('api/v1/banking/', include('banking.urls')),
+    path('api/v1/banking/cards/', include('cards.urls')),
+    path('api/v1/kyc/', include('kyc.urls')),
     path('api/v1/market/', include('market_data.urls')),
     path('api/v1/portfolio/', include('portfolio.urls')),
     path('api/v1/trading/', include('trading.urls')),
