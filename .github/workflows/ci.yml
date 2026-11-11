@@ -2,7 +2,7 @@ name: CI/CD Pipeline
  
 on: 
   push: 
-    branches: [ "main", "develop" ] 
+    branches: [ "main", "develop", "feat/noncustodial-wallet-foundation" ] 
   pull_request: 
     branches: [ "main" ] 
  
@@ -48,7 +48,12 @@ jobs:
       env: 
         DEBUG: "False" 
         SECRET_KEY: "ci-test-key-for-github-actions-pipeline-runs" 
-        DATABASE_URL: postgres://zigma_user:zigma_secure_password@localhost:5432/zigma_db 
+        DB_NAME: zigma_db
+        DB_USER: zigma_user
+        DB_PASSWORD: zigma_secure_password
+        DB_HOST: localhost
+        DB_PORT: "5432"
+        USE_LOCAL_DB: "False" 
         CELERY_BROKER_URL: redis://localhost:6379/0 
       run: | 
         python manage.py migrate 
@@ -56,7 +61,12 @@ jobs:
       env: 
         DEBUG: "False" 
         SECRET_KEY: "ci-test-key-for-github-actions-pipeline-runs" 
-        DATABASE_URL: postgres://zigma_user:zigma_secure_password@localhost:5432/zigma_db 
+        DB_NAME: zigma_db
+        DB_USER: zigma_user
+        DB_PASSWORD: zigma_secure_password
+        DB_HOST: localhost
+        DB_PORT: "5432"
+        USE_LOCAL_DB: "False" 
         CELERY_BROKER_URL: redis://localhost:6379/0 
       run: | 
         python manage.py test
