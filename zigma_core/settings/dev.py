@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'users',
     'wallet',
+    'chain_wallet',
     'crypto',
     'banking',
     'cards',
