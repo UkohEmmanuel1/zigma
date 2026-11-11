@@ -12,6 +12,9 @@ SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = ['*']
 
+# Keep provider credentials server-side. Never expose these to browser clients.
+BLOCKCHAIR_API_KEY = config('BLOCKCHAIR_API_KEY', default='')
+
 AUTH_USER_MODEL = 'users.User'
 
 REST_FRAMEWORK = {
