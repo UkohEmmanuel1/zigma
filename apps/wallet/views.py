@@ -16,26 +16,16 @@ class WalletDetailView(RetrieveAPIView):
 
 
 class DepositView(APIView):
+    """Legacy fiat deposits stay disabled until a provider verifies settlement."""
+
     def post(self, request, *args, **kwargs):
-        serializer = DepositSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        wallet, _ = Wallet.objects.get_or_create(user=request.user)
-        amount = serializer.validated_data["amount_cents"]
-
-        wallet.balance_cents += amount
-        wallet.save(update_fields=["balance_cents"])
-
-        Transaction.objects.create(
-            wallet=wallet,
-            type="DEPOSIT",
-            amount_cents=amount,
-            balance_after_cents=wallet.balance_cents,
-            reference=f"dep_{wallet.id}_{amount}",
+        return Response(
+            {
+                "detail": "Deposits are temporarily unavailable. A verified payment provider integration is required before balances can be credited.",
+                "code": "DEPOSITS_DISABLED_PENDING_VERIFIED_PROVIDER",
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
-
-        out = WalletSerializer(wallet)
-        return Response(out.data, status=status.HTTP_200_OK)
 
 
 class TransactionListView(ListAPIView):
