@@ -22,6 +22,7 @@ urlpatterns = [
     path('api/v1/health/', include('health.urls')),
     path('api/v1/auth/', include('users.urls')),
     path('api/v1/wallet/', include('wallet.urls')),
+    path('api/v1/chain-wallets/', include('chain_wallet.urls')),
     path('api/v1/crypto/', include('crypto.urls')),
     path('api/v1/banking/', include('banking.urls')),
     path('api/v1/banking/cards/', include('cards.urls')),
